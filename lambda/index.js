@@ -23,7 +23,7 @@ const VALIDATION_CONTENT_TYPE_LIST = ['image/jpeg', 'image/png'];
 const DEFAULT_BG_IMAGE_PATH = ['default/bg_blue.png', 'default/bg_red.png', 'default/bg_green.png']
 
 exports.handler = async function(event, context, callback) {
-    console.log('event', event)
+    console.log('event!', event)
     const resource = event.resource;
     const resourceDepth = resource.split('/');
     console.log('resourceDepth', resourceDepth);
