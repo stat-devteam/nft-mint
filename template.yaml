@@ -1,0 +1,34 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: An AWS Serverless Specification template describing your function.
+Resources:
+  lambda:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: lambda/index.handler
+      Runtime: nodejs12.x
+      Description: ''
+      MemorySize: 256
+      Timeout: 15
+      Role: 'arn:aws:iam::151057464517:role/role_lamda_rds_sm'
+      AutoPublishAlias: live
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-0264570acb525ea2c
+        SubnetIds:
+          - subnet-046d19f8679e0c3ba
+          - subnet-056eb2522829ac617
+      Environment:
+        Variables:
+          DB_NAME: stat
+          DB_PORT: '3306'
+          DB_USER: stat_lambda
+          DB_ENDPOINT: stat-dev-aurora-cluster-instance-1.cie0pivfwnw8.ap-northeast-2.rds.amazonaws.com
+          DB_SM_ID : stat-dev-rds-sm
+          REGION: ap-northeast-2
+          PLAN_ID : 7p5oq9
+          SM_ID : stat-dev-kas-sm
+          COGNITO_USER_POOL_ID : ap-northeast-2_FkC6uTaVh
+          PARAMETER_STORE_VALUE : 'dev_maintenance'
+          S3_IMGAE_BUCKET : stat-dev-nft-img
+          KLIP_SM_ID : stat-dev-klip-sm

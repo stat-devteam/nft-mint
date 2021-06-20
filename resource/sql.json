@@ -1,0 +1,62 @@
+{
+    "check_link": {
+        "queryString": "SELECT * FROM link WHERE mbr_id = ? AND mbr_grp_id = ?",
+        "params": ["memberId", "memberGroupId"],
+        "desc": "이미 링크 생성되어 있는지 확인"
+    },
+    "error_log_insert": {
+        "queryString": "INSERT INTO error_log(type,code,message) VALUES (?,?,?)",
+        "params": ["type", "code", "message"],
+        "desc": "insert new error_log"
+    },
+    "service_callback_get": {
+        "queryString": "SELECT * FROM service_callback WHERE svc_callback_seq = ? AND callback_status= 'ready'",
+        "params": ["svc_callback_seq"],
+        "desc": "service callback get with ready status"
+    },
+    "service_callback_update": {
+        "queryString": "UPDATE service_callback SET callback_url= ? , callback_status = ?, callback_result = ? WHERE svc_callback_seq = ?",
+        "params": ["callback_url", "callback_status", "callback_result", "svc_callback_seq"],
+        "desc": "service callback set status and result"
+    },
+    "insert_memo": {
+        "queryString": "INSERT INTO svc_memo(memo) VALUES( ? )",
+        "params": ["memo"],
+        "desc": "새 메모 추가"
+    },
+    "service_callback_insert": {
+        "queryString": "INSERT INTO service_callback(callback_status, callback_url) VALUES ('ready' , ?)",
+        "params": ["callback_url"],
+        "desc": "service callback insert with ready status"
+    },
+    "nft_log_update": {
+        "queryString": "UPDATE nft SET log_seq = ? WHERE nft_seq = ?",
+        "params": ["log_seq", "nft_seq"],
+        "desc": "nft_log_update"
+    },
+    "nft_insert": {
+        "queryString": "INSERT INTO nft(name, description, tx_hash, tx_status, job_status, mbr_id, link_num, to_address, trader_id, trader_name, img_url, effect_dt, expire_dt, svc_memo_seq, svc_callback_seq, transfer_seq, log_seq) VALUES( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "params": [],
+        "desc": "nft_insert"
+    },
+    "nft_update_tx_hash_status_job": {
+        "queryString": "UPDATE nft SET tx_hash = ?, tx_status =?, job_status=? WHERE nft_seq = ?",
+        "params": ["tx_hash", "tx_status", "job_status", "nft_seq"],
+        "desc": "nft_update_tx_hash_status"
+    },
+    "nft_update_tx_hash_status_job_end": {
+        "queryString": "UPDATE nft SET tx_hash = ?, tx_status =?, job_status=?, tx_end_dt = NOW() WHERE nft_seq = ?",
+        "params": ["tx_hash", "tx_status", "job_status", "nft_seq"],
+        "desc": "nft_update_tx_hash_status"
+    },
+    "nft_check_maximum_supply": {
+        "queryString": "select COUNT(*) as count from nft where trader_id=? and tx_status not in ('fail') and expire_dt >= NOW()",
+        "params": ["trader_id"],
+        "desc": "NFT 발행 전 트레이더의최대 발행량 확인"
+    },
+    "nft_check_member": {
+        "queryString": "select * from nft where link_num = (select link_num from link l where l.mbr_id =? and l.mbr_grp_id =?) and trader_id=? and tx_status not in ('fail') and expire_dt >= NOW()",
+        "params": ["mbr_id", "trader_id"],
+        "desc": "NFT 발행 전 유저가 발행 가능 확인"
+    }
+}
