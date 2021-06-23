@@ -48,7 +48,6 @@ exports.handler = async function(event, context, callback) {
                 return sendRes(callback, 400, { message: JSON.parse(Base64.decode(isMaintenance)).message, })
             }
 
-            // upload image -> 발행량 체크 -> insert
 
             //[validation] parameter
             if (!formData.name ||
@@ -60,6 +59,9 @@ exports.handler = async function(event, context, callback) {
                 !formData.effectDate ||
                 !formData.expireDate) {
                 return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인' })
+            }
+            if (formData.traderName.length > 20) {
+                return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - treaderName max length 20' })
             }
             // if (!formData.file || !formData.contentType) {
             //     return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - file' })
@@ -472,6 +474,9 @@ exports.handler = async function(event, context, callback) {
                 !formData.effectDate ||
                 !formData.expireDate) {
                 return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인' })
+            }
+            if (formData.traderName.length > 20) {
+                return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - treaderName max length 20' })
             }
             // if (!formData.file || !formData.contentType) {
             //     return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - file' })
