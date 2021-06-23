@@ -32,3 +32,4 @@ Resources:
           PARAMETER_STORE_VALUE : 'dev_maintenance'
           S3_IMGAE_BUCKET : stat-dev-nft-img
           KLIP_SM_ID : stat-dev-klip-sm
+          KAS_xChainId : 1001

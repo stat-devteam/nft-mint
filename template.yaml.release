@@ -34,4 +34,6 @@ Resources:
           SM_ID : stat-release-kas-sm
           COGNITO_USER_POOL_ID : ap-northeast-2_hOuyTXi19
           PARAMETER_STORE_VALUE : 'release_maintenance'
+          S3_IMGAE_BUCKET : stat-release-nft-img
           KLIP_SM_ID : stat-release-klip-sm
+          KAS_xChainId : 8217

@@ -35,7 +35,7 @@
         "desc": "nft_log_update"
     },
     "nft_insert": {
-        "queryString": "INSERT INTO nft(name, description, tx_hash, tx_status, job_status, mbr_id, link_num, to_address, trader_id, trader_name, img_url, effect_dt, expire_dt, svc_memo_seq, svc_callback_seq, transfer_seq, log_seq) VALUES( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "queryString": "INSERT INTO nft(name, description, tx_hash, tx_status, job_status, mbr_id, link_num, to_address, trader_id, trader_name, klip_img_url,s3_img_url, effect_dt, expire_dt, svc_memo_seq, svc_callback_seq, transfer_seq, log_seq) VALUES( ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         "params": [],
         "desc": "nft_insert"
     },

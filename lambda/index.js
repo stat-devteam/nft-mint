@@ -6,6 +6,7 @@ const axios = require("axios").default;
 const gm = require('gm').subClass({ imageMagick: true });
 const fs = require('fs').promises;
 const moment = require('moment-timezone');
+const Base64 = require("js-base64");
 
 const dbPool = require('../modules/util_rds_pool.js');
 const dbQuery = require('../resource/sql.json');
@@ -13,6 +14,7 @@ const klipHandler = require('../modules/util_klip.js');
 const s3Handler = require("../modules/util_s3.js");
 const smHandler = require('../modules/util_sm.js');
 const bbHandler = require('../modules/util_bb.js');
+const psHandler = require('../modules/util_ps.js');
 
 const { InsertLogSeq } = require("../modules/utils_error.js");
 
@@ -37,10 +39,15 @@ exports.handler = async function(event, context, callback) {
             const formData = await parse(event);
             const secretValue = await smHandler.getSecretValue(process.env.SM_ID);
             const klipSecretValue = await smHandler.getSecretValue(process.env.KLIP_SM_ID);
-
             console.log('formData', formData);
 
-            // upload image -> 발행량 체크 -> insert
+            const pass = formData.pass;
+            const isMaintenance = await psHandler.getParameterStoreValue(process.env.PARAMETER_STORE_VALUE, 'backend', pass);
+            console.log('isMaintenance', isMaintenance)
+            if (isMaintenance) {
+                return sendRes(callback, 400, { message: JSON.parse(Base64.decode(isMaintenance)).message, })
+            }
+
 
             //[validation] parameter
             if (!formData.name ||
@@ -53,6 +60,9 @@ exports.handler = async function(event, context, callback) {
                 !formData.expireDate) {
                 return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인' })
             }
+            if (formData.traderName.length > 20) {
+                return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - treaderName max length 20' })
+            }
             // if (!formData.file || !formData.contentType) {
             //     return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - file' })
             // }
@@ -61,9 +71,14 @@ exports.handler = async function(event, context, callback) {
             // }
 
             //image file data
-            const file_name = formData.name + '_' + formData.traderId + '_' + formData.memberId + '.png';
+            const s3_file_name = formData.name + '_' + formData.traderId + '_' + formData.memberId + '_' + formData.effectDate.substring(0, 10) + '~' + formData.expireDate.substring(0, 10) + '.png';
             const file_content_type = 'image/png';
             let file_buffer = formData.file;
+            if (formData.contentType) {
+                if (!VALIDATION_CONTENT_TYPE_LIST.includes(formData.contentType)) {
+                    return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - file png or jpeg' })
+                }
+            }
 
             //nft data[required]
             const name = formData.name;
@@ -84,10 +99,10 @@ exports.handler = async function(event, context, callback) {
 
             const token = event.headers.Authorization;
             console.log('token', token)
-            const tokenValidation = await bbHandler.requestValidation(token);
+            const tokenValidation = await bbHandler.requestValidation(token, member_id);
             console.log('tokenValidation', tokenValidation)
             if (!tokenValidation.result) {
-                return sendRes(callback, 400, { code: 1012, message: '유효하지 않은 토큰입니다.' })
+                return sendRes(callback, 400, { code: 1012, message: '유효하지 않은 토큰입니다.', info: tokenValidation.data })
             }
 
             //[TASK] INSERT MEMO
@@ -142,12 +157,11 @@ exports.handler = async function(event, context, callback) {
             let file_path = null;
             console.log('file_buffer', file_buffer)
             let s3_img_buffer = null;
-            if (file_buffer !== 'null') {
-
+            if (file_buffer) {
                 const circle_file_buffer = await generateCircle(file_buffer);
                 console.log('circle_file_buffer', circle_file_buffer)
 
-                // This must run inside a function marked `async`:
+                //image composite를 할려면 로컬파일이 있어야해서 추가한 로직
                 const now = moment(new Date()).tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
                 const temp_file_path = '/tmp/img' + now + '.png';
                 const write_fs = await fs.writeFile(temp_file_path, circle_file_buffer).then((res) => {
@@ -168,7 +182,7 @@ exports.handler = async function(event, context, callback) {
             console.log('s3_img_buffer', s3_img_buffer)
 
             //s3 upload
-            let s3_upload = await s3Handler.requestUpload(file_name, s3_img_buffer, file_content_type);
+            let s3_upload = await s3Handler.requestUpload(s3_file_name, s3_img_buffer, file_content_type);
             let s3_image_url = null;
 
             if (s3_upload.result) {
@@ -176,27 +190,24 @@ exports.handler = async function(event, context, callback) {
             }
             else {
                 return sendRes(callback, 400, { code: 7001, message: 'NFT Image Upload Fail (KLIP)', info: s3_upload.data })
-
             }
 
-            // let klip_image_url = null;
-            const klipUploadImageResult = await klipHandler.requestUploadImage(s3_image_url);
+            //klip request upload
+            const klipUploadImageResult = await klipHandler.requestUploadImage(s3_img_buffer);
 
             let klip_image_url = null;
 
             if (klipUploadImageResult.result) {
-                klip_image_url = klipUploadImageResult.data.image;
+                klip_image_url = klipUploadImageResult.data.url;
             }
             else {
                 //klip upload 실패시 업로드했던 s3 취소 후 에러메세지 리턴
-
-                const s3_delete = await s3Handler.requestDelete(file_name);
+                const s3_delete = await s3Handler.requestDelete(s3_file_name);
                 console.log('s3_delete', s3_delete);
 
                 return sendRes(callback, 400, { code: 7001, message: 'NFT Image Upload Fail (KLIP)', info: klipUploadImageResult.data })
             }
             console.log('klip_image_url', klip_image_url)
-
 
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             //[TASK] Card Minting
@@ -244,6 +255,7 @@ exports.handler = async function(event, context, callback) {
                 user_klip_address,
                 trader_id,
                 trader_name,
+                klip_image_url,
                 s3_image_url,
                 effect_dt,
                 expire_dt,
@@ -257,7 +269,19 @@ exports.handler = async function(event, context, callback) {
             console.log('nft_insert_seq', nft_insert_seq)
 
             //[TASK] request Card Mint
-            const klipCardMintResult = await klipHandler.requestCardMint(user_klip_address, name, description, klip_image_url, effect_dt, expire_dt)
+            //mbr_id, trader_id, trader_name,type: 'trader_card'
+            const klipCardMintResult = await klipHandler.requestCardMint(
+                user_klip_address,
+                name,
+                description,
+                klip_image_url,
+                effect_dt,
+                expire_dt,
+                member_id,
+                member_group_id,
+                trader_id,
+                trader_name,
+                'trader_card')
             let tx_hash = null;
             if (klipCardMintResult.result) {
                 tx_hash = klipCardMintResult.data.hash;
@@ -273,12 +297,14 @@ exports.handler = async function(event, context, callback) {
                 let code = klipCardMintResult.data.code || '';
                 let message = klipCardMintResult.data.err || '';
 
-                const [nft_update_tx_hash_status, f1] = await pool.query(dbQuery.nft_update_tx_hash_status.queryString, [
+
+                const [nft_update_tx_hash_status_fail, f3] = await pool.query(dbQuery.nft_update_tx_hash_status_job_end.queryString, [
                     tx_hash,
                     'fail',
+                    'done',
                     nft_insert_seq
                 ]);
-                console.log('nft_update_tx_hash_status', nft_update_tx_hash_status)
+                console.log('nft_update_tx_hash_status_fail', nft_update_tx_hash_status_fail)
                 const nftLogSeq = await InsertLogSeq('nft', nft_insert_seq, 'KLIP', code, message);
                 console.log('nftLogSeq', nftLogSeq)
                 return sendRes(callback, 400, errorBody);
@@ -290,7 +316,7 @@ exports.handler = async function(event, context, callback) {
             const checkHeader = {
                 'Authorization': secretValue.kas_authorization,
                 'Content-Type': 'application/json',
-                'x-chain-id': kasInfo.xChainId,
+                'x-chain-id': 8217,
             };
 
             const pollFn = () => {
@@ -429,6 +455,13 @@ exports.handler = async function(event, context, callback) {
 
             console.log('formData', formData);
 
+            const pass = formData.pass;
+            const isMaintenance = await psHandler.getParameterStoreValue(process.env.PARAMETER_STORE_VALUE, 'backend', pass);
+            console.log('isMaintenance', isMaintenance)
+            if (isMaintenance) {
+                return sendRes(callback, 400, { message: JSON.parse(Base64.decode(isMaintenance)).message, })
+            }
+
             // upload image -> 발행량 체크 -> insert
 
             //[validation] parameter
@@ -442,15 +475,20 @@ exports.handler = async function(event, context, callback) {
                 !formData.expireDate) {
                 return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인' })
             }
+            if (formData.traderName.length > 20) {
+                return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - treaderName max length 20' })
+            }
             // if (!formData.file || !formData.contentType) {
             //     return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - file' })
             // }
-            // if (!VALIDATION_CONTENT_TYPE_LIST.includes(formData.contentType)) {
-            //     return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - file png or jpeg' })
-            // }
+            if (formData.contentType) {
+                if (!VALIDATION_CONTENT_TYPE_LIST.includes(formData.contentType)) {
+                    return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - file png or jpeg' })
+                }
+            }
 
             //image file data
-            const file_name = formData.name + '_' + formData.traderId + '_' + formData.memberId + '.png';
+            const s3_file_name = formData.name + '_' + formData.traderId + '_' + formData.memberId + '_' + formData.effectDate.substring(0, 10) + '~' + formData.expireDate.substring(0, 10) + '.png';
             const file_content_type = 'image/png';
             const file_buffer = formData.file;
 
@@ -475,10 +513,10 @@ exports.handler = async function(event, context, callback) {
 
             const token = event.headers.Authorization;
             console.log('token', token)
-            const tokenValidation = await bbHandler.requestValidation(token);
+            const tokenValidation = await bbHandler.requestValidation(token, member_id);
             console.log('tokenValidation', tokenValidation)
             if (!tokenValidation.result) {
-                return sendRes(callback, 400, { code: 1012, message: '유효하지 않은 토큰입니다.' })
+                return sendRes(callback, 400, { code: 1012, message: '유효하지 않은 토큰입니다.', info: tokenValidation.data })
             }
 
             //[TASK] INSERT MEMO
@@ -542,7 +580,7 @@ exports.handler = async function(event, context, callback) {
             let file_path = null;
             console.log('file_buffer', file_buffer)
             let s3_img_buffer = null;
-            if (file_buffer !== 'null') {
+            if (file_buffer) {
 
                 const circle_file_buffer = await generateCircle(file_buffer);
                 console.log('circle_file_buffer', circle_file_buffer)
@@ -568,7 +606,7 @@ exports.handler = async function(event, context, callback) {
             console.log('s3_img_buffer', s3_img_buffer)
 
             //s3 upload
-            let s3_upload = await s3Handler.requestUpload(file_name, s3_img_buffer, file_content_type);
+            let s3_upload = await s3Handler.requestUpload(s3_file_name, s3_img_buffer, 'image/png');
             let s3_image_url = null;
 
             if (s3_upload.result) {
@@ -579,18 +617,17 @@ exports.handler = async function(event, context, callback) {
 
             }
 
-            // let klip_image_url = null;
-            const klipUploadImageResult = await klipHandler.requestUploadImage(s3_image_url);
+            //klip request upload
+            const klipUploadImageResult = await klipHandler.requestUploadImage(s3_img_buffer);
 
             let klip_image_url = null;
 
             if (klipUploadImageResult.result) {
-                klip_image_url = klipUploadImageResult.data.image;
+                klip_image_url = klipUploadImageResult.data.url;
             }
             else {
                 //klip upload 실패시 업로드했던 s3 취소 후 에러메세지 리턴
-
-                const s3_delete = await s3Handler.requestDelete(file_name);
+                const s3_delete = await s3Handler.requestDelete(s3_file_name);
                 console.log('s3_delete', s3_delete);
 
                 return sendRes(callback, 400, { code: 7001, message: 'NFT Image Upload Fail (KLIP)', info: klipUploadImageResult.data })
@@ -645,10 +682,11 @@ exports.handler = async function(event, context, callback) {
                 trader_id,
                 trader_name,
                 klip_image_url,
+                s3_image_url,
                 effect_dt,
                 expire_dt,
                 memoSeq,
-                svc_callback_seq, //svc_callback_seq
+                null, //svc_callback_seq
                 null, //transfer_seq
                 null, //log_seq
             ]);
@@ -657,8 +695,21 @@ exports.handler = async function(event, context, callback) {
             console.log('nft_insert_seq', nft_insert_seq)
 
             //[TASK] request Card Mint
-            const klipCardMintResult = await klipHandler.requestCardMint(user_klip_address, name, description, klip_image_url, effect_dt, expire_dt)
+            const klipCardMintResult = await klipHandler.requestCardMint(
+                user_klip_address,
+                name,
+                description,
+                klip_image_url,
+                effect_dt,
+                expire_dt,
+                member_id,
+                member_group_id,
+                trader_id,
+                trader_name,
+                'trader_card');
+
             let tx_hash = null;
+
             if (klipCardMintResult.result) {
                 tx_hash = klipCardMintResult.data.hash;
             }
@@ -784,28 +835,37 @@ const getContentType = (event) => {
 };
 
 const parse = (event) => new Promise((resolve, reject) => {
-    const bodyBuffer = new Buffer.from(event.body.toString(), "base64");
+    console.log('event.body.toString()', event.body.toString());
 
+    const bodyBuffer = new Buffer.from(event.body.toString(), "base64");
+    console.log('bodyBuffer', bodyBuffer)
     const busboy = new Busboy({
         headers: {
             'content-type': getContentType(event),
         }
     });
-
+    console.log('busboy', busboy)
     const result = {};
 
     busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
         file.on('data', data => {
+            console.log('data', data)
             result.file = data;
         });
 
         file.on('end', () => {
+            console.log('end', file)
+            console.log('filename', filename)
+            console.log('encoding', encoding)
+            console.log('mimetype', mimetype)
             result.filename = filename;
             result.contentType = mimetype;
         });
     });
 
     busboy.on('field', (fieldname, value) => {
+        console.log('fieldname', fieldname)
+        console.log('value', value)
         result[fieldname] = value;
     });
 
