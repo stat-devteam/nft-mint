@@ -4,13 +4,20 @@ var axios = require("axios").default;
 const klipInfo = require('../resource/klip.json');
 var smHandler = require('./util_sm.js');
 var FormData = require('form-data');
+var crypto = require('crypto');
+const jwt_decode = require("jwt-decode");
+const moment = require('moment-timezone');
 
 let klipLoginData = null; //login 이후에 엑세스 토큰은 해쉬값으로 접근
 
 const getKlipLoginData = async() => {
+    const now_unix = moment(new Date()).tz('Asia/Seoul').unix();
+    console.log('[getKlipLoginData] klipLoginData', klipLoginData)
+    console.log('[getKlipLoginData] now_unix', now_unix)
+    // cache에서 값 가져올 경우 decode
+    if (klipLoginData && klipLoginData.exp > now_unix) {
+        console.log('[getKlipLoginData] return info from cache', klipLoginData);
 
-    if (klipLoginData) {
-        console.log('[getKlipLoginData] return info from cache')
         return {
             result: true,
             data: klipLoginData,
@@ -19,9 +26,15 @@ const getKlipLoginData = async() => {
     else {
         const klipLoginResult = await requestLogin();
         console.log('[getKlipLoginData] return info from api')
+        let temp_data = klipLoginResult.data;
+        const access_token = klipLoginResult.data.access_token;
+        var decoded = jwt_decode(access_token);
+        console.log(decoded);
+        const exp = decoded.exp;
+        temp_data.exp = exp;
+        klipLoginData = temp_data;
 
         if (klipLoginResult.result) {
-            klipLoginData = klipLoginResult.data;
             return {
                 result: true,
                 data: klipLoginResult.data
@@ -46,7 +59,8 @@ const requestLogin = async() => {
 
     const email = secretValue.email;
     const password = secretValue.password;
-
+    const sha256_pw = crypto.createHash('sha256').update(password).digest('hex');
+    console.log('sha256_pw', sha256_pw)
     // [TASK] Request Klip Check
     const axiosHeader = {
         'Content-Type': 'application/json',
@@ -54,7 +68,7 @@ const requestLogin = async() => {
 
     const body = {
         email: email,
-        password: password
+        password: sha256_pw
     }
 
     console.log('[requestLogin] request klip partenr api auth')
@@ -67,7 +81,7 @@ const requestLogin = async() => {
             return { error: err.response }
         });
     console.log('[requestLogin] klipPartnerLoginResult', klipPartnerLoginResult)
-    if (!klipPartnerLoginResult.error) {
+    if (klipPartnerLoginResult.error) {
         console.log('[Klip - 400] response', klipPartnerLoginResult.error);
         const data = klipPartnerLoginResult.error.data;
         return {
@@ -76,29 +90,30 @@ const requestLogin = async() => {
         }
     }
     else {
-        // const data = klipPartnerLogin.data; 
         const temp_data = {
-            "email": "ray.kim@groundx.xyz",
-            "klaytn_address": 0xdc6AE5861a73d852bd3cdD84a4BA7f598A5160F3,
-            "contract_address": "0xc94770007dda54cF92009BFF0dE90c06F603a09f",
-            "name": "Ray Kim",
-            "phone": "01077777777",
-            "service_name": "판타지월드레볼루션",
-            "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJI...",
-            "status": 10,
-            "mint_limit": 1000,
-            "mint_count": 1,
-        }
-        klipLoginData = temp_data;
+            email: 'juhwan@statproject.io',
+            access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJJZCI6MTAwMzg1MCwiZXhwIjoxNjI0MzUxODIzfQ.TOxD4HIIv7y_kEv0jMqLS0QOU7-zeru4l08QYNgbffU',
+            klaytn_address: '0x9Db60109f71a1E11D7ED3B6d9a6452fA61A5597C',
+            contract_address: '0x74de529b202b36aF76Fd1d6A0e2609dE72a2DC8d',
+            name: 'STATPTELTD',
+            service_name: 'STAT',
+            phone: '01088448508',
+            status: 1,
+            mint_limit: 10000,
+            mint_count: 0
+        };
+
+        klipLoginData = klipPartnerLoginResult.data;
         return {
             result: true,
-            data: temp_data,
+            data: klipPartnerLoginResult.data,
         }
 
     }
 }
 
-const requestUploadImage = async(image_url) => {
+const requestUploadImage = async(image_buffer) => {
+    console.log('[requestUploadImage] image_buffer', image_buffer)
 
     const klipLoginData = await getKlipLoginData();
     console.log('[requestUploadImage] klipLoginData', klipLoginData)
@@ -107,6 +122,7 @@ const requestUploadImage = async(image_url) => {
     if (klipLoginData.result) {
         access_token = klipLoginData.data.access_token
     }
+
     else {
         return {
             result: false,
@@ -117,13 +133,19 @@ const requestUploadImage = async(image_url) => {
     console.log('[requestUploadImage] access_token', access_token)
 
     //[TASK] Request Klip Check
+
+    var formData = new FormData();
+    formData.append('upload', image_buffer, {
+        contentType: 'image/png',
+        filename: 'upload.png',
+    });
+
     const axiosHeader = {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': `multipart/form-data; boundary=${formData._boundary}`,
         'Authorization': access_token
     };
 
-    var formData = new FormData();
-    formData.append('upload', image_url);
+    console.log('[requestUploadImage] axiosHeader', axiosHeader)
     console.log('[requestUploadImage] formData', formData)
 
     const klipImageUploadResult = await axios
@@ -134,8 +156,9 @@ const requestUploadImage = async(image_url) => {
             console.log('[requestUploadImage - ERROR] err', err);
             return { error: err.response }
         });
+    console.log('klipImageUploadResult', klipImageUploadResult)
 
-    if (!klipImageUploadResult.error) {
+    if (klipImageUploadResult.error) {
         console.log('[requestUploadImage - ERROR] response', klipImageUploadResult.error);
         const data = klipImageUploadResult.error.data;
         return {
@@ -144,21 +167,21 @@ const requestUploadImage = async(image_url) => {
         }
     }
     else {
-        const temp_data = { "image": "https://path_to_image/image.png" }
         return {
             result: true,
-            data: temp_data,
+            data: klipImageUploadResult.data,
         }
     }
 }
 
 
-const requestCardMint = async(to_address, name, description, image_url, effect_dt, expire_dt) => {
-
+const requestCardMint = async(to_address, name, description, image_url, effect_dt, expire_dt, mbr_id, mbr_grp_id, trader_id, trader_name, type) => {
+    //mbr_id, trader_id, trader_name,type: 'trader_card'
     const secretValue = await smHandler.getSecretValue(process.env.KLIP_SM_ID);
     console.log('[requestCardMint] secretValue', secretValue)
+
     let info_json = {
-        "pin": secretValue.pin,
+        "pin": crypto.createHash('sha256').update(secretValue.pin).digest('hex'),
         "to_address": [to_address],
         "contract_address": secretValue.contract_address,
         "name": name,
@@ -168,14 +191,38 @@ const requestCardMint = async(to_address, name, description, image_url, effect_d
         "send_friend_only": false,
         "layout": "general",
         "attributes": [{
-            "trait_type": "effect_date",
-            "value": effect_dt,
+                "trait_type": "effect_date",
+                "value": effect_dt,
 
-        }, {
-            "trait_type": "expire_date",
-            "value": expire_dt,
+            }, {
+                "trait_type": "expire_date",
+                "value": expire_dt,
 
-        }, ]
+            },
+            {
+                "trait_type": "mbr_id",
+                "value": mbr_id,
+
+            },
+            {
+                "trait_type": "mbr_grp_id",
+                "value": mbr_grp_id,
+            },
+            {
+                "trait_type": "trader_id",
+                "value": trader_id,
+
+            },
+            {
+                "trait_type": "trader_name",
+                "value": trader_name,
+
+            },
+            {
+                "trait_type": "card_type",
+                "value": type,
+            },
+        ]
     }
 
     console.log('info_json', info_json);
@@ -194,13 +241,15 @@ const requestCardMint = async(to_address, name, description, image_url, effect_d
             message: klipLoginData.message,
         }
     }
-    console.log('[requestCardMint] access_token', access_token)
 
     //[TASK] Request Klip Check
     const axiosHeader = {
         'Content-Type': 'application/json',
         'Authorization': access_token
     };
+
+    console.log('[requestCardMint] axiosHeader', axiosHeader);
+    console.log('[requestCardMint] info_json', info_json);
 
     const klipCardMintResult = await axios
         .post(
@@ -210,8 +259,8 @@ const requestCardMint = async(to_address, name, description, image_url, effect_d
             console.log('[requestCardMint - ERROR] err', err);
             return { error: err.response }
         });
-
-    if (!klipCardMintResult.error) {
+    console.log('klipCardMintResult', klipCardMintResult)
+    if (klipCardMintResult.error) {
         console.log('[requestCardMint - ERROR] response', klipCardMintResult.error);
         const data = klipCardMintResult.error.data;
         return {
@@ -220,15 +269,10 @@ const requestCardMint = async(to_address, name, description, image_url, effect_d
         }
     }
     else {
-        const temp_data = {
-            // 0x3815249f37c9464a2151f09e4bc92fd8aa53c340f6f0537ddc36f945aa115900 success
-            // 0x4edc1438f7defda5fc267ef11fc484edbed73d86480959eb57a5421a84fd7f59 commitError
-            // 0x2d26f602cfbb4c662931592bf2c4ee18d29f09683be5b9e8d589ff935fca0b97 invliad hash
-            "hash": "0x3815249f37c9464a2151f09e4bc92fd8aa53c340f6f0537ddc36f945aa115900"
-        }
+
         return {
             result: true,
-            data: temp_data,
+            data: klipCardMintResult.data,
         }
     }
 }
