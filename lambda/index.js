@@ -91,8 +91,8 @@ exports.handler = async function(event, context, callback) {
             const trader_id = formData.traderId;
             const trader_name = formData.traderName;
             const type = formData.type;
-            const effect_dt = moment(formData.effectDate).format('YYYY-MM-DD HH:mm');
-            const expire_dt = moment(formData.expireDate).format('YYYY-MM-DD HH:mm');
+            const effect_dt = moment(formData.effectDate).format('YYYY-MM-DD HH:mm:ss');
+            const expire_dt = moment(formData.expireDate).format('YYYY-MM-DD HH:mm:ss');
             console.log('effect_dt', effect_dt);
             console.log('expire_dt', expire_dt);
 
@@ -514,8 +514,8 @@ exports.handler = async function(event, context, callback) {
             const trader_name = formData.traderName;
             const type = formData.type;
 
-            const effect_dt = moment(formData.effectDate).format('YYYY-MM-DD HH:mm');
-            const expire_dt = moment(formData.expireDate).format('YYYY-MM-DD HH:mm');
+            const effect_dt = moment(formData.effectDate).format('YYYY-MM-DD HH:mm:ss');
+            const expire_dt = moment(formData.expireDate).format('YYYY-MM-DD HH:mm:ss');
 
             //nft date[optional]
             const memo = formData.memo || null;
