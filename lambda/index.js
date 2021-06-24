@@ -21,7 +21,7 @@ const { InsertLogSeq } = require("../modules/utils_error.js");
 const kasInfo = require('../resource/kas.json');
 const klipInfo = require('../resource/klip.json');
 
-const VALIDATION_CONTENT_TYPE_LIST = ['image/jpeg', 'image/png'];
+const VALIDATION_CONTENT_TYPE_LIST = ['image/jpeg', 'image/png', 'application/octet-stream'];
 const DEFAULT_BG_IMAGE_PATH = ['default/bg_blue.png', 'default/bg_red.png', 'default/bg_green.png']
 
 exports.handler = async function(event, context, callback) {
