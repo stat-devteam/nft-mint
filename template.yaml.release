@@ -11,7 +11,7 @@ Resources:
       Handler: lambda/index.handler
       Runtime: nodejs12.x
       Description: ''
-      MemorySize: 256
+      MemorySize: 1024
       Timeout: 20
       Role: 'arn:aws:iam::151057464517:role/role_lamda_rds_sm'
       AutoPublishAlias: live
