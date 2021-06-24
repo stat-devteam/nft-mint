@@ -175,7 +175,7 @@ const requestUploadImage = async(image_buffer) => {
 }
 
 
-const requestCardMint = async(to_address, name, description, image_url, effect_dt, expire_dt, mbr_id, mbr_grp_id, trader_id, trader_name, type) => {
+const requestCardMint = async(to_address, name, description, image_url, effect_dt, expire_dt, trader_name, type, ) => {
     //mbr_id, trader_id, trader_name,type: 'trader_card'
     const secretValue = await smHandler.getSecretValue(process.env.KLIP_SM_ID);
     console.log('[requestCardMint] secretValue', secretValue)
@@ -191,35 +191,21 @@ const requestCardMint = async(to_address, name, description, image_url, effect_d
         "send_friend_only": false,
         "layout": "general",
         "attributes": [{
-                "trait_type": "effect_date",
+                "trait_type": "시작일시",
                 "value": effect_dt,
 
             }, {
-                "trait_type": "expire_date",
+                "trait_type": "종료일시",
                 "value": expire_dt,
 
             },
             {
-                "trait_type": "mbr_id",
-                "value": mbr_id,
-
-            },
-            {
-                "trait_type": "mbr_grp_id",
-                "value": mbr_grp_id,
-            },
-            {
-                "trait_type": "trader_id",
-                "value": trader_id,
-
-            },
-            {
-                "trait_type": "trader_name",
+                "trait_type": "트레이더",
                 "value": trader_name,
 
             },
             {
-                "trait_type": "card_type",
+                "trait_type": "카드종류",
                 "value": type,
             },
         ]

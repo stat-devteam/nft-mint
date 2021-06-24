@@ -56,6 +56,7 @@ exports.handler = async function(event, context, callback) {
                 !formData.memberGroupId ||
                 !formData.traderId ||
                 !formData.traderName ||
+                !formData.type ||
                 !formData.effectDate ||
                 !formData.expireDate) {
                 return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인' })
@@ -63,22 +64,24 @@ exports.handler = async function(event, context, callback) {
             if (formData.traderName.length > 20) {
                 return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - treaderName max length 20' })
             }
-            // if (!formData.file || !formData.contentType) {
-            //     return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - file' })
-            // }
-            // if (!VALIDATION_CONTENT_TYPE_LIST.includes(formData.contentType)) {
-            //     return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - file png or jpeg' })
-            // }
 
-            //image file data
-            const s3_file_name = formData.name + '_' + formData.traderId + '_' + formData.memberId + '_' + formData.effectDate.substring(0, 10) + '~' + formData.expireDate.substring(0, 10) + '.png';
-            const file_content_type = 'image/png';
-            let file_buffer = formData.file;
+            if (!Date.parse(formData.effectDate) || !Date.parse(formData.expireDate)) {
+                return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - effectDate, expireDate' })
+            }
+
             if (formData.contentType) {
                 if (!VALIDATION_CONTENT_TYPE_LIST.includes(formData.contentType)) {
                     return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - file png or jpeg' })
                 }
             }
+
+            //image file data
+            // const s3_file_name = formData.name + '_' + formData.traderId + '_' + formData.memberId + '_' + formData.effectDate.substring(0, 10) + '~' + formData.expireDate.substring(0, 10) + '.png';
+            const s3_file_name = formData.traderId + '/' + formData.memberId + '_' + formData.effectDate.substring(0, 10) + '_' + formData.expireDate.substring(0, 10) + '.png';
+
+            const file_content_type = 'image/png';
+            let file_buffer = formData.file;
+
 
             //nft data[required]
             const name = formData.name;
@@ -87,8 +90,12 @@ exports.handler = async function(event, context, callback) {
             const member_group_id = formData.memberGroupId;
             const trader_id = formData.traderId;
             const trader_name = formData.traderName;
-            const effect_dt = formData.effectDate;
-            const expire_dt = formData.expireDate;
+            const type = formData.type;
+            const effect_dt = moment(formData.effectDate).format('YYYY-MM-DD HH:mm');
+            const expire_dt = moment(formData.expireDate).format('YYYY-MM-DD HH:mm');
+            console.log('effect_dt', effect_dt);
+            console.log('expire_dt', expire_dt);
+
 
             //nft date[optional]
             const memo = formData.memo || null;
@@ -247,6 +254,7 @@ exports.handler = async function(event, context, callback) {
             const [nft_insert, f3] = await pool.query(dbQuery.nft_insert.queryString, [
                 name,
                 description,
+                type,
                 null, // tx_hash
                 'before_submit',
                 'ready',
@@ -277,11 +285,9 @@ exports.handler = async function(event, context, callback) {
                 klip_image_url,
                 effect_dt,
                 expire_dt,
-                member_id,
-                member_group_id,
-                trader_id,
                 trader_name,
-                'trader_card')
+                type,
+            )
             let tx_hash = null;
             if (klipCardMintResult.result) {
                 tx_hash = klipCardMintResult.data.hash;
@@ -471,27 +477,34 @@ exports.handler = async function(event, context, callback) {
                 !formData.memberGroupId ||
                 !formData.traderId ||
                 !formData.traderName ||
+                !formData.type ||
                 !formData.effectDate ||
                 !formData.expireDate) {
                 return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인' })
             }
+
             if (formData.traderName.length > 20) {
                 return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - treaderName max length 20' })
             }
-            // if (!formData.file || !formData.contentType) {
-            //     return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - file' })
-            // }
+
+            if (!Date.parse(formData.effectDate) || !Date.parse(formData.expireDate)) {
+                return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - effectDate, expireDate' })
+            }
+
             if (formData.contentType) {
                 if (!VALIDATION_CONTENT_TYPE_LIST.includes(formData.contentType)) {
                     return sendRes(callback, 400, { code: 3000, message: '요청 파라미터 확인 - file png or jpeg' })
                 }
             }
 
+
+
             //image file data
-            const s3_file_name = formData.name + '_' + formData.traderId + '_' + formData.memberId + '_' + formData.effectDate.substring(0, 10) + '~' + formData.expireDate.substring(0, 10) + '.png';
+            // const s3_file_name = formData.name + '_' + formData.traderId + '_' + formData.memberId + '_' + formData.effectDate.substring(0, 10) + '~' + formData.expireDate.substring(0, 10) + '.png';
+            const s3_file_name = formData.traderId + '/' + formData.memberId + '_' + formData.effectDate.substring(0, 10) + '_' + formData.expireDate.substring(0, 10) + '.png';
+
             const file_content_type = 'image/png';
             const file_buffer = formData.file;
-
             //nft data[required]
             const name = formData.name;
             const description = formData.description;
@@ -499,8 +512,10 @@ exports.handler = async function(event, context, callback) {
             const member_group_id = formData.memberGroupId;
             const trader_id = formData.traderId;
             const trader_name = formData.traderName;
-            const effect_dt = formData.effectDate;
-            const expire_dt = formData.expireDate;
+            const type = formData.type;
+
+            const effect_dt = moment(formData.effectDate).format('YYYY-MM-DD HH:mm');
+            const expire_dt = moment(formData.expireDate).format('YYYY-MM-DD HH:mm');
 
             //nft date[optional]
             const memo = formData.memo || null;
@@ -673,6 +688,7 @@ exports.handler = async function(event, context, callback) {
             const [nft_insert, f3] = await pool.query(dbQuery.nft_insert.queryString, [
                 name,
                 description,
+                type,
                 null, // tx_hash
                 'before_submit',
                 'ready',
@@ -702,11 +718,8 @@ exports.handler = async function(event, context, callback) {
                 klip_image_url,
                 effect_dt,
                 expire_dt,
-                member_id,
-                member_group_id,
-                trader_id,
                 trader_name,
-                'trader_card');
+                type, );
 
             let tx_hash = null;
 
@@ -799,7 +812,7 @@ const insertTextImage = async(buffer, creator_text, effect_dt, expire_dt) => {
     return new Promise((resolve, reject) => {
         gm(buffer)
             .fill('#171d30')
-            .font('./NotoSansCJKkr-Regular.ttf', 33)
+            .font('./NotoSansCJKkr-Bold.ttf', 33)
             .drawText(0, 58, creator_text, 'Center') // 276-228 = 48 
             .fill('#171d30')
             .font('./Roboto-Regular.ttf', 21)
@@ -812,15 +825,6 @@ const overlayImage = async(bg_buffer, file_path) => {
     return new Promise((resolve, reject) => {
         gm(bg_buffer)
             .composite(file_path)
-            .geometry("+159+114")
-            .toBuffer((err, buf) => err ? reject(err) : resolve(buf))
-    })
-}
-
-const generateImage = async(bg_buffer, file_buffer) => {
-    return new Promise((resolve, reject) => {
-        gm(bg_buffer)
-            .composite(file_buffer)
             .geometry("+159+114")
             .toBuffer((err, buf) => err ? reject(err) : resolve(buf))
     })
@@ -932,5 +936,5 @@ const sendRes = (callback, statusCode, body) => {
         body: JSON.stringify(body)
     };
 
-    callback(null, response);
+    return response;
 }
