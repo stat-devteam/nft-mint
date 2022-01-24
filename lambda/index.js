@@ -360,7 +360,8 @@ exports.handler = async function(event, context, callback) {
                         updateTxStatus = 'submit';
                     }
                     else {
-                        updateTxStatus = 'fail';
+                        // updateTxStatus = 'fail'; 기존엔 에러나면 fail이었으나, KAS API에서 수시로 400에러를 떨어트려서, submit으로 변경
+                        updateTxStatus = 'submit';
                     }
                 },
             );
